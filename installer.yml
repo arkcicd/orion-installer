@@ -1,0 +1,113 @@
+---
+
+## this software is licensed under the MIT open source license
+## see https://opensource.org/licenses/MIT
+
+- hosts: localhost
+  become: yes
+  become_user: root
+
+  tasks:
+
+  # --------------------------------------------------------------------------------- #
+  # import vars from installer-config.yml file
+  # --------------------------------------------------------------------------------- #
+
+  # import the installer-config.yml
+  # installer.yml comes in from orion-installer to 
+  # cicd/installer/orion-installer/installer.yml
+  # which is symlinked to cicd/installer/installer.yml
+  # cicd/installer/installer-config.yml lives with the app repo 
+  # and is changeable code to craft WHAT installer.yml brings over
+
+  - name: installer | import yaml
+    include_vars:
+      file: "./installer-config.yml"
+      # These are top-level vars, no name assigned as they are brought in
+
+  # --------------------------------------------------------------------------------- #
+  # three paths - default, explicit and hybrid
+  # --------------------------------------------------------------------------------- #
+
+  # three paths
+  # install_mode: default
+  #   team gets team organization, HEAD
+  #   gold master gets (ALWAYS) gold master and HEAD
+  #   local individual fork gets local + HEAD
+  # install_mode:  explicit
+  #   all roles must be specified explicitly in installer-config.yml
+  #   role_repo, repo_project and github_commit_id must all be defined
+  # install_mode:  hybrid
+  #   what is set is respected, what is NOT set fails back to defults,
+  #   e.g., local build org and HEAD
+
+  # --------------------------------------------------------------------------------- #
+  # default path - install_mode: 'default' in installer-config.yml
+  # --------------------------------------------------------------------------------- #
+
+  # ansible detects what org we are running in, e.g., individual, team or gold master forks
+  # Jenkinsfile adds "gitorg: "dmunsinger15" for github_organization
+  # at the end of the installer-config.yml file
+  # commit_id is HEAD always
+
+  - name: installer (default) | bring in roles
+    git:
+      repo:       "git@{{ repo_server }}:{{ repo_project }}/{{ item.app_repo }}.git"
+      version:    "HEAD"
+      dest:       "../ansible/roles/{{ item.app_repo }}"
+      force:      yes
+    with_items:   "{{ ansible_roles }}"
+    when:         install_mode == "default"
+
+  # --------------------------------------------------------------------------------- #
+  # explicit path - install_mode: 'explicit' in installer-config.yml
+  # --------------------------------------------------------------------------------- #
+
+  # this requires installer-config.yml to specify
+  # ansible_roles:
+  #   - github_organization: "dmunsinger15"
+  #     github_repo:         "ansible_role-jenkins-2lts-controller"
+  #     github_commit_id:    "HEAD"
+  #        OR
+  #     github_commit_id:    "bfdc948730f8427280327df34f726c83e7f9c260"
+  # this will bring in very explicitly what you want to build
+
+  - name: installer (explicit) | bring in roles
+    git:
+      repo:       "git@{{ repo_server }}:{{ item.app_organization }}/{{ item.app_repo }}.git"
+      version:    "{{ item.app_commit_id }}"
+      dest:       "../ansible/roles/{{ item.app_repo }}"
+      force:      yes
+    with_items:   "{{ ansible_roles }}"
+    when:         install_mode == "explicit"
+
+  # --------------------------------------------------------------------------------- #
+  # hybrid path - install_mode: 'hybrid' in installer-config.yml
+  # --------------------------------------------------------------------------------- #
+
+  # for this one we check for each line, if present, use it, otherwise
+  # fall back to defaults
+
+  - name: installer (hybrid) | bring in roles
+    git:
+      repo:       "git@{{ repo_server }}:{{ item.app_organization | default(repo_project) }}/{{ item.app_repo }}.git"
+      version:    "{{ item.app_commit_id | default('HEAD') }}"
+      dest:       "../ansible/roles/{{ item.app_repo }}"
+      force:      yes
+    with_items:   "{{ ansible_roles }}"
+    when:         install_mode == 'hybrid'
+
+
+  # --------------------------------------------------------------------------------- #
+  # added_tasks.yml
+  # --------------------------------------------------------------------------------- #
+
+  # if installer/added_tasks.yml exists, import tasks and execute
+  # this should allow repo-specific install tasks to be added on beyond the standard installer.yml tasks
+  - name: installer | look for added_tasks.yml file
+    stat:
+      path: "added_tasks.yml"
+    register: add_tasks
+  - name: installer | include_tasks from added_tasks.yml if it exists
+    include_tasks: added_tasks.yml
+    when: add_tasks.stat.exists

@@ -1,0 +1,29 @@
+---
+
+## this software is licensed under the MIT open source license
+## see https://opensource.org/licenses/MIT
+
+  ## this file is for additional tasks 
+  ## it is brought in by 
+  ## - name: installer | look for added_tasks.yml file
+  ##  stat:
+  ##    path: "added_tasks.yml"
+  ##  register: add_tasks
+  ## - name: installer | include_tasks from added_tasks.yml if it exists
+  ##  include_tasks: added_tasks.yml
+  ##  when: add_tasks.stat.exists
+  ## at the end of installer.yml
+
+# EXAMPLE
+#  - name: installer | place url in source_repo.txt file
+#    copy:
+#      dest: ../ansible/roles/ansible_role-nebula-utils-api/files/source_repo.txt
+#      content: "git@{{ github_server }}:{{ gitorg }}/nebula-utils-api.git"
+#      force: yes
+#
+#  - name: installer | place version specifier in source_repo_hash.txt for lookup
+#    copy:
+#      dest: ../ansible/roles/ansible_role-nebula-utils-api/files/source_repo_hash.txt
+#      content: "HEAD"
+#      force: yes
+

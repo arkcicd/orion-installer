@@ -1,0 +1,102 @@
+---
+
+## this software is licensed under the MIT open source license
+## see https://opensource.org/licenses/MIT
+
+# ------------------------------------------------------------------------------------------- #
+# install_mode
+# ------------------------------------------------------------------------------------------- #
+
+# install_mode: explicit 
+#   installer.yml play will look for explicit definitions for 
+#   each role to be installed
+# install_mode: default
+#   installer.yml will checkout role(s) at HEAD for the repos 
+#   from the same organization in which the build is originated
+# install_mode: hybrid
+#   installer.yml accepts whatever is defined 
+#   (github_repo must be defined, always)
+#   where org or commit id are not explicitly defined they default back
+#   to local org and HEAD
+
+install_mode:                          'hybrid'
+
+# ------------------------------------------------------------------------------------------- #
+# meta
+# ------------------------------------------------------------------------------------------- #
+
+# repo_server is where to retrieve code from
+# repo_project is hard-set here, but IF for-fork-clone model, 
+# this would be derived and injected by Jenkinsfile (or other pipeline)
+# architecture is standalone, standalone+slaves, distributed 
+#   (TBD)
+# secrets will path retrieving keys from vault other sources
+
+repo_server:                         'bitbucket.org'
+repo_project:                        'organization_or_project'
+architecture:                        'standalone'
+secrets:                             'vault'
+
+# ------------------------------------------------------------------------------------------- #
+# app roles
+# ------------------------------------------------------------------------------------------- #
+
+# git ls-remote <git_url>  gives you the available hashes
+# one or more roles can be defined here
+# *** the app_repo MUST be defined ***
+
+ansible_roles: 
+  - app_repo:         "ansible_role-jenkins-2lts-controller"
+    app_organization: "arkcicd"
+  - app_repo:         "ansible_role-consul-and-vault"
+    app_organization: "arkcicd"
+  - app_repo:         "ansible_role-nebula-utils-api"
+    app_organization: "arkcicd"
+    app_commit_id:    "HEAD"
+  - app_repo:         "nebula-utils-api"
+    app_organization: "arkcicd"
+    app_commit_id:    "TICKET-4555"
+
+# ------------------------------------------------------------------------------------------- #
+# logship_endpoint
+# ------------------------------------------------------------------------------------------- #
+
+# this is NOT currently used, future use
+# values are "s3' for aws, 'local_file' to drop into /var/log/nebula
+
+logship_endpoint:                      's3'
+
+# ------------------------------------------------------------------------------------------- #
+# Jenkins controller and agent config
+# ------------------------------------------------------------------------------------------- #
+
+# how many executors on the controller itself?
+
+jenkins_controller_executors: 8
+
+# does this instance use agents?
+# IF arkCICD uses agents, each arklight Jenkins instance MUST use a separate AWS key configured for use with the cloud agents
+# If the key is the same, each controller can grab another's agent instead of spinning up its own
+# making the AWS keys different prevents this from occurring
+# The mechanism for this requires generating keys in AWS, 
+# you can do this on the command line with something like 
+#  aws ec2 create-key-pair --region=us-west-1 --key-name MyKeyPair --query ‘KeyMaterial’ --output text > MyKeyPair.pem
+# then copy and paste the private key into the Jenkins UI at the cloud ec2 configuration for the AWS private key
+# save that, and then capture the encrypted version now written into /var/lib/jenkins/config.xml
+# which is directly tied to /var/lib/jenkins/secrets/master.key and hudson.util.Secret binary file (these encode the encrypted string)
+# load vault with (1) encrypted private key string, (2) master.key, (3) hudson.util.Secret (encoded into base64 and then recovered), 
+# and a field for "in-use" to allow Jenkins to discover unused private keys
+# at that point at boot Jenkins would theoretically retrieve and confgure a proivate key, master.ksy and hudson.util.Secret for 
+# use in authenticating agent instances
+# and mark the key it retrieves as in-use
+# on shutdown the key would be marked in vault as no longer in use by setting that field to False
+
+# True or False
+jenkins_agents:  False
+
+# one each agent how many executors - 
+# if there are agents (jenkins_agents is True), how many executors on each?
+
+jenkins_agent_executors:  4
+
+
